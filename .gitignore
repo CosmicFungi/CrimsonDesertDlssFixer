@@ -1,0 +1,21 @@
+# .NET build artifacts
+bin/
+obj/
+publish/
+*.user
+*.suo
+*.cache
+
+# Local IDE / sandbox temp dirs
+.vs/
+.vscode/
+.dotnet_home/
+.appdata/
+.localappdata/
+.nuget/
+NuGet.Config
+
+# OS files
+Thumbs.db
+Desktop.ini
+.DS_Store
