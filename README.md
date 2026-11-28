@@ -8,7 +8,7 @@ A free, open-source Windows utility that diagnoses and fixes **Crimson Desert**'
 
 - **DLSS / Frame Generation / MFG still broken after a clean game reinstall** (Steam clean installs do not reset NVIDIA Driver DRS profiles, global Streamline overrides, `%LOCALAPPDATA%\Pearl Abyss` configs, `%LOCALAPPDATA%\RHI` caches, or extra mod folders like `bin64\_BACKUPNV`).
 - **Frame Generation / MFG behaves inverted** (looks ON when set to OFF, and OFF when set to ON) — caused by Global **NVIDIA Smooth Motion (`0xB0D384C0`)** colliding with Streamline's `sl.dlss_g.dll` swapchain hook (`slHookGetBuffer: proxyBuffer is NULL`).
-- **Strange graphics blinking / flashing** — caused by Global **NVIDIA Smooth Motion**, Global **RTX HDR (`0x00DD48FB`)** colliding with Crimson Desert's native in-game HDR, Global **DLSS Model Preset Profile (`0x00634291`)**, or Global **Forced V-Sync (`0x00A879CF`)**.
+- **Strange graphics blinking / flashing / subtle pulsing lighting** — caused by Global **NVIDIA Smooth Motion**, Global **RTX HDR (`0x00DD48FB`)** colliding with Crimson Desert's native in-game HDR, Global **RTX Dynamic Vibrance / `DeepDVC` (`0x00980880`)** hooking Streamline's `sl.deepdvc.dll`, Global **Driver Sharpening (`0x00598928`)**, Global **DLSS Model Preset Profile (`0x00634291`)**, or Global **Forced V-Sync (`0x00A879CF`)**.
 - **Thousands of Streamline errors** (`kBufferTypeDepth` / `kBufferTypeMotionVectors`) caused by Global **`Enable Streamline override` (`0x10E41E06 = 1`)** injecting mismatched OTA Streamline DLLs over the game's `bin64\sl.*.dll` files.
 
 ---
@@ -17,7 +17,7 @@ A free, open-source Windows utility that diagnoses and fixes **Crimson Desert**'
 
 1. **NVIDIA Driver Global (`Base Profile`) & `Crimson Desert` DRS Profiles** (via native `nvapi64.dll` + internal NVAPI v2 + direct `nvdrsdb0/1.bin` inspection):
    - Deletes stale/forced DLSS, DLSS-RR, DLSS-FG, MFG, and Streamline overrides (`0x10E41E06`, `0x10308298`, `0x104D6667`, `0x10AFB768`, `0x10BD9423`, `0x10E41E01-03`, `0x10E41DF*`, etc.) using `NvAPI_DRS_DeleteProfileSetting`.
-   - Explicitly disables **NVIDIA Smooth Motion (`0xB0D384C0 = 0`)**, **Low Latency override (`0x0005F543 = 0`)**, **RTX HDR (`0x00DD48FB = 0`)**, **Global DLSS Model Preset override (`0x00634291 = 0`)**, and **Forced V-Sync (`0x00A879CF`)** on the **`Crimson Desert` profile only** — preserving your Global settings for all other games.
+   - Explicitly disables **NVIDIA Smooth Motion (`0xB0D384C0 = 0`)**, **Low Latency override (`0x0005F543 = 0`)**, **RTX HDR (`0x00DD48FB = 0`)**, **Global DLSS Model Preset override (`0x00634291 = 0`)**, **RTX Dynamic Vibrance / `DeepDVC` (`0x00980880 = 0`)**, **Driver Sharpening (`0x00598928 = 0`)**, **Transparency Supersampling (`0x10D48A85 = 0`)**, and **Forced V-Sync (`0x00A879CF`)** on the **`Crimson Desert` profile only** — preserving your Global settings for all other games.
 2. **Pearl Abyss AppData XML Configs** (`%LOCALAPPDATA%\Pearl Abyss\CD\`):
    - Detects Read-Only locks, malformed XML, modded non-native DLSS 5 / OptiScaler strings, or invalid `_numFramesToGenerate` overrides while respecting legitimate native in-game DLSS 4.5 choices.
    - **Never touches your save slots** (`CD\save\<steamid>\slot*`).

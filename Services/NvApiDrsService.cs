@@ -81,6 +81,9 @@ public sealed class NvApiDrsService
             [0x0005F543] = "Low Latency Mode",
             [0x00DD48FB] = "Enable TrueHDR Feature (RTX HDR)",
             [0x00634291] = "DLSS Model Preset Profile",
+            [0x00980880] = "Enable DeepDVC Feature (RTX Dynamic Vibrance)",
+            [0x00598928] = "Driver Sharpening Filter",
+            [0x10D48A85] = "Antialiasing - Transparency Supersampling",
             [0x00A879CF] = "Vertical Sync",
         };
 
@@ -88,6 +91,9 @@ public sealed class NvApiDrsService
     public const uint DRS_LOW_LATENCY_MODE = 0x0005F543;
     public const uint DRS_RTX_HDR_ENABLE = 0x00DD48FB;
     public const uint DRS_DLSS_MODEL_PRESET_PROFILE = 0x00634291;
+    public const uint DRS_DEEPDVC_ENABLE = 0x00980880;
+    public const uint DRS_SHARPENING_FILTER = 0x00598928;
+    public const uint DRS_AA_TRANSPARENCY_SS = 0x10D48A85;
     public const uint DRS_VSYNC = 0x00A879CF;
     public const uint VSYNC_FORCE_ON = 0x47814940;
     public const uint VSYNC_USE_APP = 0x00000000;

@@ -375,6 +375,83 @@ public sealed class DiagnosticEngine
             });
         }
 
+        // 4. Global NVIDIA DeepDVC (RTX Dynamic Vibrance, 0x00980880) & Driver Sharpening Filter (0x00598928)
+        bool cdDeepDvcSet = cdBin.TryGetValue(NvApiDrsService.DRS_DEEPDVC_ENABLE, out var cdDvcRec) && cdDvcRec.IsUserModified;
+        bool baseDeepDvcOn = baseBin.TryGetValue(NvApiDrsService.DRS_DEEPDVC_ENABLE, out var bDvcRec) && bDvcRec.IsUserModified && bDvcRec.Value != 0;
+        bool effectiveDeepDvcOn = cdDeepDvcSet ? (cdDvcRec!.Value != 0) : baseDeepDvcOn;
+
+        bool cdSharpSet = cdBin.TryGetValue(NvApiDrsService.DRS_SHARPENING_FILTER, out var cdSharpRec) && cdSharpRec.IsUserModified;
+        bool baseSharpOn = baseBin.TryGetValue(NvApiDrsService.DRS_SHARPENING_FILTER, out var bSharpRec) && bSharpRec.IsUserModified && bSharpRec.Value != 0;
+        bool effectiveSharpOn = cdSharpSet ? (cdSharpRec!.Value != 0) : baseSharpOn;
+
+        if (effectiveDeepDvcOn || effectiveSharpOn)
+        {
+            var ids = new List<uint>();
+            var details = new StringBuilder();
+            if (effectiveDeepDvcOn)
+            {
+                ids.Add(NvApiDrsService.DRS_DEEPDVC_ENABLE);
+                details.AppendLine("• 0x00980880 — Enable DeepDVC Feature (RTX Dynamic Vibrance): ON (hooks Streamline sl.deepdvc.dll / nvngx_deepdvc.dll; dynamically shifts per-frame brightness/saturation causing subtle lighting pulsing, oversaturation, and extra GPU overhead)");
+            }
+            if (effectiveSharpOn)
+            {
+                ids.Add(NvApiDrsService.DRS_SHARPENING_FILTER);
+                details.AppendLine("• 0x00598928 — Driver Sharpening Filter: ON (stacks on top of DLSS 4.5 sharpening, causing fine-detail shimmering and extra post-process overhead)");
+            }
+
+            issues.Add(new DiagnosticIssue
+            {
+                Id = "drs_deepdvc_sharpening_cd",
+                Title = effectiveDeepDvcOn && effectiveSharpOn
+                    ? "Global RTX Dynamic Vibrance (DeepDVC) & Driver Sharpening Active on Crimson Desert"
+                    : effectiveDeepDvcOn
+                        ? "Global RTX Dynamic Vibrance (DeepDVC) Active on Crimson Desert"
+                        : "Global NVIDIA Driver Sharpening Filter Active on Crimson Desert",
+                Category = IssueCategory.NvidiaDrsProfile,
+                Severity = IssueSeverity.Warning,
+                Summary = "Crimson Desert inherits global NVIDIA post-processing filters (RTX Dynamic Vibrance / DeepDVC and/or Driver Sharpening). DeepDVC hooks Streamline's sl.deepdvc.dll to adapt brightness & saturation per frame, which can cause uneven/pulsing lighting, oversaturation, and lower FPS with DLSS.",
+                TechnicalDetails = details.ToString().TrimEnd(),
+                FixDescription = $"Explicitly disable {(effectiveDeepDvcOn ? "DeepDVC (0x00980880=0)" : "")}{(effectiveDeepDvcOn && effectiveSharpOn ? " and " : "")}{(effectiveSharpOn ? "Driver Sharpening (0x00598928=0)" : "")} on the '{profileNameFound}' profile only (preserves Global settings for other games).",
+                IsFixable = true,
+                DefaultSelected = true,
+                IsSelected = true,
+                FixActionKey = "FIX_DISABLE_POSTFX_CD",
+                Metadata = new Dictionary<string, string>
+                {
+                    ["ProfileName"] = profileNameFound,
+                    ["SettingIds"] = string.Join(",", ids.Select(id => $"0x{id:X8}"))
+                }
+            });
+        }
+
+        // 5. Global Transparency Supersampling (0x10D48A85) inherited on Crimson Desert
+        bool cdAaSsSet = cdBin.TryGetValue(NvApiDrsService.DRS_AA_TRANSPARENCY_SS, out var cdAaRec) && cdAaRec.IsUserModified;
+        bool baseAaSsOn = baseBin.TryGetValue(NvApiDrsService.DRS_AA_TRANSPARENCY_SS, out var bAaRec) && bAaRec.IsUserModified && bAaRec.Value != 0;
+        bool effectiveAaSsOn = cdAaSsSet ? (cdAaRec!.Value != 0) : baseAaSsOn;
+
+        if (effectiveAaSsOn)
+        {
+            uint val = cdAaSsSet ? cdAaRec!.Value : bAaRec!.Value;
+            issues.Add(new DiagnosticIssue
+            {
+                Id = "drs_aa_transparency_ss_cd",
+                Title = $"Global Transparency Supersampling (0x10D48A85=0x{val:X}) Inherited by Crimson Desert",
+                Category = IssueCategory.NvidiaDrsProfile,
+                Severity = IssueSeverity.Warning,
+                Summary = "Your Global NVIDIA Base Profile forces Antialiasing - Transparency Supersampling (e.g. 8x SGSSAA), which should be Off/App-Controlled for modern DX12 DLSS titles.",
+                TechnicalDetails = $"• 0x10D48A85 — Antialiasing - Transparency Supersampling: 0x{val:X} ({(cdAaSsSet ? "set on Crimson Desert" : "inherited from Global Base Profile")})",
+                FixDescription = $"Set Antialiasing - Transparency Supersampling to Off (0x10D48A85=0) on the '{profileNameFound}' profile only.",
+                IsFixable = true,
+                DefaultSelected = true,
+                IsSelected = true,
+                FixActionKey = "FIX_DISABLE_AA_SS_CD",
+                Metadata = new Dictionary<string, string>
+                {
+                    ["ProfileName"] = profileNameFound
+                }
+            });
+        }
+
         // ------------------------------------------------------------------
         // CHECK B: Pearl Abyss AppData XML Configs (DLSS & MFG corruption)
         // ------------------------------------------------------------------
@@ -824,6 +901,37 @@ public sealed class DiagnosticEngine
                         var updates = new (uint, uint)[]
                         {
                             (NvApiDrsService.DRS_VSYNC, NvApiDrsService.VSYNC_USE_APP),
+                        };
+                        var (ok, backedUp, logs) = _nvapi.SetDrsSettingsU32(isBaseProfile: false, profName, updates);
+                        manifest.DrsEntries.AddRange(backedUp);
+                        result.LogLines.AddRange(logs);
+                        MarkIssue(issue, ok, result);
+                        break;
+                    }
+
+                    case "FIX_DISABLE_POSTFX_CD":
+                    {
+                        string profName = issue.Metadata.GetValueOrDefault("ProfileName", "Crimson Desert");
+                        var ids = ParseHexIds(issue.Metadata.GetValueOrDefault("SettingIds", ""));
+                        if (ids.Count == 0)
+                        {
+                            ids.Add(NvApiDrsService.DRS_DEEPDVC_ENABLE);
+                            ids.Add(NvApiDrsService.DRS_SHARPENING_FILTER);
+                        }
+                        var updates = ids.Select(id => (id, 0u)).ToList();
+                        var (ok, backedUp, logs) = _nvapi.SetDrsSettingsU32(isBaseProfile: false, profName, updates);
+                        manifest.DrsEntries.AddRange(backedUp);
+                        result.LogLines.AddRange(logs);
+                        MarkIssue(issue, ok, result);
+                        break;
+                    }
+
+                    case "FIX_DISABLE_AA_SS_CD":
+                    {
+                        string profName = issue.Metadata.GetValueOrDefault("ProfileName", "Crimson Desert");
+                        var updates = new (uint, uint)[]
+                        {
+                            (NvApiDrsService.DRS_AA_TRANSPARENCY_SS, 0u),
                         };
                         var (ok, backedUp, logs) = _nvapi.SetDrsSettingsU32(isBaseProfile: false, profName, updates);
                         manifest.DrsEntries.AddRange(backedUp);
